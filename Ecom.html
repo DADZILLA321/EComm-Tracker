@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>E-commerce Sales Analysis Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root{--bg:#f4f5f8;--card:#fff;--ink:#1b2033;--mute:#5d6580;--line:#e1e4ee;--acc:#3b4cca;--acc2:#e0892b;--good:#1f8a5b;--bad:#c9403a;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#12141f;--card:#1b1e2d;--ink:#eceefa;--mute:#9aa1bd;--line:#2c3046;--acc:#8c9bff;--acc2:#f0a64d;--good:#4cc790;--bad:#ef7a73}}
+:root[data-theme="dark"]{--bg:#12141f;--card:#1b1e2d;--ink:#eceefa;--mute:#9aa1bd;--line:#2c3046;--acc:#8c9bff;--acc2:#f0a64d;--good:#4cc790;--bad:#ef7a73}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"DM Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;line-height:1.45}
+.wrap{max-width:1100px;margin:0 auto;padding:20px 16px 40px}
+h1{font-size:1.5rem;margin:0 0 4px;letter-spacing:-.01em}
+.sub{color:var(--mute);font-size:.9rem;margin:0 0 16px}
+.filters{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+select{background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font:inherit;font-size:.9rem}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px}
+.kpi span{display:block;color:var(--mute);font-size:.8rem}
+.kpi b{font-size:1.45rem;letter-spacing:-.02em}
+.kpi small{font-size:.78rem}
+.up{color:var(--good)}.down{color:var(--bad)}
+.grid{display:grid;grid-template-columns:2fr 1fr;gap:12px;margin-bottom:12px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px;min-width:0}
+.card h2{font-size:.95rem;margin:0 0 10px}
+.ch{position:relative;height:240px}
+.scroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:.85rem}
+th,td{text-align:left;padding:7px 6px;border-bottom:1px solid var(--line);white-space:nowrap}
+th{color:var(--mute);font-weight:600}
+td.n,th.n{text-align:right}
+ul{margin:0;padding-left:18px;font-size:.88rem}
+li{margin-bottom:6px}
+.note{color:var(--mute);font-size:.78rem;margin-top:16px}
+@media(max-width:760px){.grid,.grid2{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>E-commerce Sales Analysis</h1>
+<p class="sub">Jan–Dec 2025, sample dataset of 5,000 orders. Filter by category and region to see how the numbers change.</p>
+<div class="filters">
+<select id="fc" aria-label="Category"></select>
+<select id="fr" aria-label="Region"></select>
+</div>
+<div class="kpis" id="kpis"></div>
+<div class="grid">
+<div class="card"><h2>Monthly revenue</h2><div class="ch"><canvas id="c1"></canvas></div></div>
+<div class="card"><h2>Revenue by region</h2><div class="ch"><canvas id="c2"></canvas></div></div>
+</div>
+<div class="grid2">
+<div class="card"><h2>Revenue by category</h2><div class="ch"><canvas id="c3"></canvas></div></div>
+<div class="card"><h2>Return rate by category</h2><div class="ch"><canvas id="c4"></canvas></div></div>
+</div>
+<div class="grid2">
+<div class="card"><h2>Top 5 products</h2><div class="scroll"><table id="tp"></table></div></div>
+<div class="card"><h2>What the data shows</h2><ul id="ins"></ul></div>
+</div>
+<p class="note">All data is randomly generated for this project and is not from any real company.</p>
+</div>
+<script>
+const MONTHS=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const CATS={"Electronics":["Wireless Earbuds","Smart Watch","Power Bank","Bluetooth Speaker"],"Fashion":["Running Shoes","Denim Jacket","Cotton Kurta","Backpack"],"Home & Kitchen":["Air Fryer","Mixer Grinder","Bedsheet Set","Water Bottle"],"Beauty":["Face Serum","Sunscreen","Hair Dryer","Perfume"],"Books & Toys":["Board Game","Novel Set","Puzzle","Art Kit"]};
+const PRICE={"Electronics":[1499,2999,999,1799],"Fashion":[2499,3299,899,1299],"Home & Kitchen":[4999,2799,1599,499],"Beauty":[799,449,1899,1599],"Books & Toys":[999,699,399,549]};
+const RETP={"Electronics":.09,"Fashion":.19,"Home & Kitchen":.07,"Beauty":.06,"Books & Toys":.04};
+const REGIONS=["North","South","East","West"];
+const RW=[.3,.32,.14,.24];
+let s=2025;const rnd=()=>{s=(s*1664525+1013904223)%4294967296;return s/4294967296};
+const pick=w=>{let r=rnd(),a=0;for(let i=0;i<w.length;i++){a+=w[i];if(r<a)return i}return w.length-1};
+const catNames=Object.keys(CATS),cw=[.28,.26,.2,.14,.12];
+const mw=[.07,.065,.07,.07,.075,.07,.075,.08,.085,.1,.12,.12];
+const orders=[];
+for(let i=0;i<5000;i++){
+ const c=catNames[pick(cw)],p=pick([.3,.3,.2,.2]),r=REGIONS[pick(RW)],m=pick(mw);
+ const q=1+(rnd()<.25?1:0)+(rnd()<.08?1:0);
+ orders.push({m,c,p:CATS[c][p],r,rev:PRICE[c][p]*q*(0.92+rnd()*.16),ret:rnd()<RETP[c]});
+}
+const inr=v=>"₹"+(v>=1e5?(v/1e5).toFixed(2)+" L":Math.round(v).toLocaleString("en-IN"));
+const fc=document.getElementById("fc"),fr=document.getElementById("fr");
+fc.innerHTML=["All categories",...catNames].map(x=>`<option>${x}</option>`).join("");
+fr.innerHTML=["All regions",...REGIONS].map(x=>`<option>${x}</option>`).join("");
+let charts={};
+const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+function mk(id,type,labels,data,opts={}){
+ const acc=css("--acc"),acc2=css("--acc2"),mute=css("--mute"),line=css("--line");
+ if(charts[id])charts[id].destroy();
+ const pal=[acc,acc2,"#2a9d8f","#b5517f","#7a8499"];
+ charts[id]=new Chart(document.getElementById(id),{type,data:{labels,datasets:[{data,backgroundColor:type==="doughnut"?pal:acc,borderColor:type==="line"?acc:"transparent",borderWidth:2,tension:.3,fill:false,pointRadius:type==="line"?3:0,borderRadius:4}]},
+ options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:type==="doughnut",position:"bottom",labels:{color:mute,boxWidth:10}},tooltip:{callbacks:{label:c=>opts.fmt?opts.fmt(c.parsed.y??c.parsed):c.parsed.y??c.parsed}}},
+ scales:type==="doughnut"?{}:{x:{ticks:{color:mute},grid:{display:false}},y:{ticks:{color:mute,callback:opts.tick},grid:{color:line},beginAtZero:true}}}});
+}
+function sum(a,f){return a.reduce((t,o)=>t+f(o),0)}
+function render(){
+ const C=fc.value,R=fr.value;
+ const d=orders.filter(o=>(C==="All categories"||o.c===C)&&(R==="All regions"||o.r===R));
+ const rev=sum(d,o=>o.rev),n=d.length,aov=n?rev/n:0,rr=n?sum(d,o=>o.ret?1:0)/n:0;
+ const h1=sum(d.filter(o=>o.m<6),o=>o.rev),h2=rev-h1,gr=h1?(h2-h1)/h1*100:0;
+ document.getElementById("kpis").innerHTML=
+ `<div class="kpi"><span>Revenue</span><b>${inr(rev)}</b></div>
+  <div class="kpi"><span>Orders</span><b>${n.toLocaleString("en-IN")}</b></div>
+  <div class="kpi"><span>Avg order value</span><b>${inr(aov)}</b></div>
+  <div class="kpi"><span>Return rate</span><b>${(rr*100).toFixed(1)}%</b></div>
+  <div class="kpi"><span>H2 vs H1 revenue</span><b class="${gr>=0?"up":"down"}">${gr>=0?"+":""}${gr.toFixed(1)}%</b></div>`;
+ const mon=MONTHS.map((_,i)=>sum(d.filter(o=>o.m===i),o=>o.rev));
+ mk("c1","line",MONTHS,mon,{tick:v=>(v/1e5).toFixed(0)+"L",fmt:inr});
+ const reg=REGIONS.map(x=>sum(d.filter(o=>o.r===x),o=>o.rev));
+ mk("c2","doughnut",REGIONS,reg,{fmt:inr});
+ const cat=catNames.map(x=>sum(d.filter(o=>o.c===x),o=>o.rev));
+ mk("c3","bar",catNames,cat,{tick:v=>(v/1e5).toFixed(0)+"L",fmt:inr});
+ const rt=catNames.map(x=>{const k=d.filter(o=>o.c===x);return k.length?sum(k,o=>o.ret?1:0)/k.length*100:0});
+ mk("c4","bar",catNames,rt,{tick:v=>v+"%",fmt:v=>v.toFixed(1)+"%"});
+ const pm={};d.forEach(o=>{pm[o.p]=pm[o.p]||{rev:0,n:0,c:o.c};pm[o.p].rev+=o.rev;pm[o.p].n++});
+ const top=Object.entries(pm).sort((a,b)=>b[1].rev-a[1].rev).slice(0,5);
+ document.getElementById("tp").innerHTML="<tr><th>Product</th><th>Category</th><th class='n'>Orders</th><th class='n'>Revenue</th></tr>"+
+  top.map(([k,v])=>`<tr><td>${k}</td><td>${v.c}</td><td class="n">${v.n}</td><td class="n">${inr(v.rev)}</td></tr>`).join("");
+ const bm=mon.indexOf(Math.max(...mon)),wr=rt.indexOf(Math.max(...rt));
+ const br=reg.indexOf(Math.max(...reg)),bc=cat.indexOf(Math.max(...cat));
+ const L=[];
+ if(n){
+  L.push(`Peak month is ${MONTHS[bm]} with ${inr(mon[bm])}, which points to festive-season demand.`);
+  L.push(`${REGIONS[br]} brings the most revenue (${(reg[br]/rev*100).toFixed(0)}% of the total).`);
+  if(C==="All categories")L.push(`${catNames[bc]} leads categories, while ${catNames[wr]} has the highest return rate at ${rt[wr].toFixed(1)}%.`);
+  L.push(`Second-half revenue is ${Math.abs(gr).toFixed(1)}% ${gr>=0?"higher":"lower"} than the first half.`);
+ }else L.push("No orders match this filter. Pick a different category or region.");
+ document.getElementById("ins").innerHTML=L.map(x=>`<li>${x}</li>`).join("");
+}
+fc.onchange=fr.onchange=render;
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change",render);
+render();
+</script>
+</body>
+</html>
